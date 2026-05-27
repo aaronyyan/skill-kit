@@ -80,6 +80,8 @@ pub fn run() {
       delete_platform_skill,
       open_external_url,
       install_from_github,
+      scan_github_repo,
+      install_multiple_from_github,
       set_debug_mode,
       get_debug_mode,
       get_debug_logs,
@@ -297,4 +299,31 @@ fn install_from_github<R: Runtime>(
   )
   .map_err(paths::error_to_string)?;
   Ok(result)
+}
+
+#[tauri::command]
+fn scan_github_repo<R: Runtime>(
+  app: AppHandle<R>,
+  url: String,
+) -> Result<GitHubScanResult, String> {
+  operations::scan_github_repo_inner(&app, &url).map_err(paths::error_to_string)
+}
+
+#[tauri::command]
+fn install_multiple_from_github<R: Runtime>(
+  app: AppHandle<R>,
+  url: String,
+  subpaths: Vec<String>,
+) -> Result<Vec<InstallFromGitHubResult>, String> {
+  let app_paths = AppPaths::new(&app).map_err(paths::error_to_string)?;
+  let results = operations::install_multiple_from_github_inner(&app, &app_paths, &url, &subpaths)
+    .map_err(paths::error_to_string)?;
+  for result in &results {
+    registry::append_log(
+      &app_paths,
+      &format!("install_from_github {} -> {}", url, result.skill.name),
+    )
+    .map_err(paths::error_to_string)?;
+  }
+  Ok(results)
 }

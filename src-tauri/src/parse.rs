@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::Path;
 
+use serde_json;
+
 pub fn extract_description(skill_dir: &Path) -> String {
   let skill_file = skill_dir.join("SKILL.md");
   if let Ok(content) = fs::read_to_string(&skill_file) {
@@ -151,6 +153,7 @@ fn extract_body_summary(skill_dir: &Path) -> Option<String> {
 }
 
 pub fn extract_github_url(skill_dir: &Path) -> Option<String> {
+  // 1. Check .git/config in the skill directory
   let git_config = skill_dir.join(".git").join("config");
   if let Ok(content) = fs::read_to_string(git_config) {
     if let Some(url) = first_github_url(&content) {
@@ -158,12 +161,73 @@ pub fn extract_github_url(skill_dir: &Path) -> Option<String> {
     }
   }
 
+  // 2. Check SKILL.md and README.md for GitHub URLs
   for filename in ["SKILL.md", "README.md"] {
     let candidate = skill_dir.join(filename);
     if let Ok(content) = fs::read_to_string(candidate) {
       if let Some(url) = first_github_url(&content) {
         return Some(url);
       }
+    }
+  }
+
+  // 3. Check package.json for repository field
+  if let Some(url) = extract_github_from_package_json(skill_dir) {
+    return Some(url);
+  }
+
+  // 4. Check parent directories for .git/config (up to 3 levels)
+  let mut current = skill_dir.parent();
+  for _ in 0..3 {
+    if let Some(parent) = current {
+      let parent_git = parent.join(".git").join("config");
+      if let Ok(content) = fs::read_to_string(parent_git) {
+        if let Some(url) = first_github_url(&content) {
+          return Some(url);
+        }
+      }
+      current = parent.parent();
+    } else {
+      break;
+    }
+  }
+
+  None
+}
+
+fn extract_github_from_package_json(skill_dir: &Path) -> Option<String> {
+  let content = fs::read_to_string(skill_dir.join("package.json")).ok()?;
+  let json: serde_json::Value = serde_json::from_str(&content).ok()?;
+
+  // "repository": "github:owner/repo" or "https://github.com/owner/repo"
+  if let Some(repo) = json.get("repository") {
+    let repo_str = if repo.is_string() {
+      repo.as_str().unwrap_or("").to_string()
+    } else if repo.is_object() {
+      repo
+        .get("url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string()
+    } else {
+      String::new()
+    };
+    if !repo_str.is_empty() {
+      // Strip common prefixes: "git+", "git@github.com:", ".git"
+      let cleaned = repo_str
+        .trim_start_matches("git+")
+        .trim_end_matches(".git")
+        .trim_end_matches('/');
+      if let Some(url) = normalize_github_repo_url(cleaned) {
+        return Some(url);
+      }
+    }
+  }
+
+  // "homepage": "https://github.com/owner/repo"
+  if let Some(homepage) = json.get("homepage").and_then(|v| v.as_str()) {
+    if let Some(url) = normalize_github_repo_url(homepage) {
+      return Some(url);
     }
   }
 
@@ -177,6 +241,13 @@ fn first_github_url(content: &str) -> Option<String> {
 }
 
 pub fn normalize_github_repo_url(token: &str) -> Option<String> {
+  parse_github_url(token).map(|(repo, _subpath)| repo)
+}
+
+/// Parse a GitHub URL into (repo_url, optional_subpath).
+/// e.g. "https://github.com/anthropics/skills/tree/main/skills/frontend-design"
+///   -> ("https://github.com/anthropics/skills", Some("skills/frontend-design"))
+pub fn parse_github_url(token: &str) -> Option<(String, Option<String>)> {
   let trimmed = token.trim_matches(|ch: char| ['(', ')', '[', ']', '{', '}', '"', '\''].contains(&ch));
 
   let raw_path = if let Some(value) = trimmed.strip_prefix("git@github.com:") {
@@ -201,13 +272,94 @@ pub fn normalize_github_repo_url(token: &str) -> Option<String> {
     .unwrap_or("")
     .trim_matches(|ch: char| ['/', '.', ',', ':', ';'].contains(&ch));
 
-  let mut segments = repo_path.split('/').filter(|segment| !segment.is_empty());
-  let owner = segments.next()?;
-  let repo = segments.next()?;
+  let segments: Vec<&str> = repo_path.split('/').filter(|s| !s.is_empty()).collect();
+  let owner = segments.first()?;
+  let repo = segments.get(1)?;
 
   if owner.starts_with('.') || repo.starts_with('.') {
     return None;
   }
 
-  Some(format!("https://github.com/{owner}/{repo}"))
+  let repo_url = format!("https://github.com/{owner}/{repo}");
+
+  // Extract subpath: skip owner/repo and any known route segments (tree, blob, raw, etc.)
+  let subpath = if segments.len() > 2 {
+    let mut rest = &segments[2..];
+    // Skip route prefixes like "tree", "blob", "raw", "commit" and the ref (branch/tag/SHA)
+    if !rest.is_empty() {
+      let first = rest[0];
+      if matches!(first, "tree" | "blob" | "raw" | "commit" | "actions" | "releases" | "issues" | "pull" | "wiki") {
+        rest = &rest[1..]; // skip the route segment
+      }
+      if !rest.is_empty() {
+        rest = &rest[1..]; // skip the ref (branch/tag name)
+      }
+    }
+    if rest.is_empty() {
+      None
+    } else {
+      Some(rest.join("/"))
+    }
+  } else {
+    None
+  };
+
+  Some((repo_url, subpath))
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn parse_github_url_with_subpath() {
+    let (repo, sub) = parse_github_url(
+      "https://github.com/anthropics/skills/tree/main/skills/frontend-design",
+    )
+    .unwrap();
+    assert_eq!(repo, "https://github.com/anthropics/skills");
+    assert_eq!(sub, Some("skills/frontend-design".to_string()));
+  }
+
+  #[test]
+  fn parse_github_url_plain_repo() {
+    let (repo, sub) = parse_github_url("https://github.com/anthropics/skills").unwrap();
+    assert_eq!(repo, "https://github.com/anthropics/skills");
+    assert_eq!(sub, None);
+  }
+
+  #[test]
+  fn parse_github_url_with_tree_no_subpath() {
+    let (repo, sub) =
+      parse_github_url("https://github.com/anthropics/skills/tree/main").unwrap();
+    assert_eq!(repo, "https://github.com/anthropics/skills");
+    assert_eq!(sub, None);
+  }
+
+  #[test]
+  fn parse_github_url_trailing_slash() {
+    let (repo, sub) =
+      parse_github_url("https://github.com/anthropics/skills/").unwrap();
+    assert_eq!(repo, "https://github.com/anthropics/skills");
+    assert_eq!(sub, None);
+  }
+
+  #[test]
+  fn parse_github_url_blob_route() {
+    let (repo, sub) = parse_github_url(
+      "https://github.com/anthropics/skills/blob/main/skills/claude-api/SKILL.md",
+    )
+    .unwrap();
+    assert_eq!(repo, "https://github.com/anthropics/skills");
+    assert_eq!(sub, Some("skills/claude-api/SKILL.md".to_string()));
+  }
+
+  #[test]
+  fn normalize_strips_subpath() {
+    let url = normalize_github_repo_url(
+      "https://github.com/anthropics/skills/tree/main/skills/frontend-design",
+    )
+    .unwrap();
+    assert_eq!(url, "https://github.com/anthropics/skills");
+  }
 }

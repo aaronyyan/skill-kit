@@ -4,6 +4,8 @@ import type {
   ActivityEntry,
   CreateSkillInput,
   DriftRecord,
+  GitHubScanResult,
+  InstallFromGitHubResult,
   PlatformGroup,
   PlatformKind,
   PlatformSkillItem,
@@ -215,6 +217,55 @@ export async function installFromGitHub(url: string) {
     skill,
     installedPlatforms: platforms,
   }
+}
+
+export async function scanGitHubRepo(url: string): Promise<GitHubScanResult> {
+  const raw = await invoke<unknown>('scan_github_repo', { url })
+  const data = raw as Record<string, unknown>
+  const skills = Array.isArray(data.skills)
+    ? (data.skills as Array<Record<string, unknown>>).map((item) => ({
+        name: String(item.name ?? ''),
+        description: String(item.description ?? ''),
+        subpath: String(item.subpath ?? ''),
+      }))
+    : []
+  return {
+    repoUrl: String(data.repo_url ?? data.repoUrl ?? ''),
+    subpath: typeof data.subpath === 'string' ? data.subpath : null,
+    skills,
+  }
+}
+
+function normalizeInstallResult(raw: unknown): InstallFromGitHubResult {
+  const data = raw as Record<string, unknown>
+  const platforms = Array.isArray(data.installed_platforms)
+    ? (data.installed_platforms as PlatformKind[])
+    : Array.isArray(data.installedPlatforms)
+      ? (data.installedPlatforms as PlatformKind[])
+      : []
+  const skillData = (data.skill ?? data) as Record<string, unknown>
+  const skill: PlatformSkillItem = {
+    id: String(skillData.id ?? ''),
+    name: String(skillData.name ?? ''),
+    category: String(skillData.category ?? 'uncategorized'),
+    tags: Array.isArray(skillData.tags) ? (skillData.tags as string[]) : [],
+    description: String(skillData.description ?? ''),
+    githubUrl: typeof skillData.github_url === 'string' ? skillData.github_url : null,
+    path: String(skillData.source_path ?? skillData.path ?? ''),
+    installPath: String(skillData.source_path ?? skillData.path ?? ''),
+    rootLabel: String(skillData.source_label ?? ''),
+    sourceLabel: String(skillData.source_label ?? ''),
+    platform: (skillData.platform as PlatformKind) ?? 'claude',
+    managedRegistryId: null,
+    syncTargets: [],
+  }
+  return { skill, installedPlatforms: platforms }
+}
+
+export async function installMultipleFromGitHub(url: string, subpaths: string[]): Promise<InstallFromGitHubResult[]> {
+  const raw = await invoke<unknown>('install_multiple_from_github', { url, subpaths })
+  const list = raw as Array<unknown>
+  return list.map(normalizeInstallResult)
 }
 
 export async function onSkillChanged(

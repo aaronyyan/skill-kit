@@ -20,8 +20,10 @@ import {
   getDebugLogs as fetchDebugLogs,
   clearDebugLogs as clearDebugLogsBackend,
   installFromGitHub,
+  installMultipleFromGitHub,
   openExternalUrl,
   onDebugLog,
+  scanGitHubRepo,
   scanPlatforms,
   setDebugMode as setDebugModeBackend,
   getDebugMode as getDebugModeBackend,
@@ -29,6 +31,7 @@ import {
   onSkillChanged,
 } from './lib/tauri'
 import type {
+  GitHubSkillPreview,
   InstallFromGitHubResult,
   PlatformGroup,
   PlatformKind,
@@ -75,8 +78,11 @@ function App() {
   const [workingAction, setWorkingAction] = useState<string | null>(null)
   const [githubUrl, setGithubUrl] = useState('')
   const [installResult, setInstallResult] = useState<InstallFromGitHubResult | null>(null)
-  const [installPhase, setInstallPhase] = useState<'input' | 'cloning' | 'done' | 'error'>('input')
+  const [multiInstallResults, setMultiInstallResults] = useState<InstallFromGitHubResult[]>([])
+  const [installPhase, setInstallPhase] = useState<'input' | 'cloning' | 'selecting' | 'installing-multi' | 'done' | 'error'>('input')
   const [installError, setInstallError] = useState<string | null>(null)
+  const [githubSkillPreviews, setGithubSkillPreviews] = useState<GitHubSkillPreview[]>([])
+  const [selectedSkillIndices, setSelectedSkillIndices] = useState<Set<number>>(new Set())
   const [debugMode, setDebugModeState] = useState(false)
   const [debugLogsOpen, setDebugLogsOpen] = useState(false)
   const [debugLogEntries, setDebugLogEntries] = useState<string[]>([])
@@ -515,10 +521,65 @@ function App() {
     })
 
     try {
-      const result = await installFromGitHub(url)
-      setInstallResult(result)
+      // Let backend parse the URL — if it has a subpath, install directly
+      const scanResult = await scanGitHubRepo(url)
+
+      if (scanResult.subpath) {
+        // URL has explicit subpath — install directly
+        const result = await installFromGitHub(url)
+        setInstallResult(result)
+        setInstallPhase('done')
+        setRecentlyInstalledNames((prev) => new Set([...prev, result.skill.name]))
+        await refreshData()
+      } else if (scanResult.skills.length === 0) {
+        setInstallError(language === 'zh' ? '仓库中没有找到 SKILL.md 文件。' : 'No SKILL.md found in the repository.')
+        setInstallPhase('error')
+      } else if (scanResult.skills.length === 1) {
+        // Single skill in repo — install directly
+        const result = await installFromGitHub(url)
+        setInstallResult(result)
+        setInstallPhase('done')
+        setRecentlyInstalledNames((prev) => new Set([...prev, result.skill.name]))
+        await refreshData()
+      } else {
+        // Multiple skills — show selection
+        setGithubSkillPreviews(scanResult.skills)
+        setSelectedSkillIndices(new Set(scanResult.skills.map((_, i) => i))) // select all by default
+        setInstallPhase('selecting')
+      }
+    } catch (cause) {
+      const raw = cause instanceof Error ? cause.message : String(cause)
+      setInstallError(enhanceInstallError(raw))
+      setInstallPhase('error')
+    } finally {
+      isInstallingRef.current = false
+      setWorkingAction(null)
+    }
+  }
+
+  async function handleConfirmMultiInstall() {
+    const url = githubUrl.trim()
+    const selectedSubpaths = githubSkillPreviews
+      .filter((_, i) => selectedSkillIndices.has(i))
+      .map((p) => p.subpath)
+
+    if (selectedSubpaths.length === 0) return
+
+    setWorkingAction('install-github')
+    isInstallingRef.current = true
+
+    await new Promise<void>((resolve) => {
+      setInstallPhase('installing-multi')
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    })
+
+    try {
+      const results = await installMultipleFromGitHub(url, selectedSubpaths)
+      setMultiInstallResults(results)
       setInstallPhase('done')
-      setRecentlyInstalledNames((prev) => new Set([...prev, result.skill.name]))
+      for (const r of results) {
+        setRecentlyInstalledNames((prev) => new Set([...prev, r.skill.name]))
+      }
       await refreshData()
     } catch (cause) {
       const raw = cause instanceof Error ? cause.message : String(cause)
@@ -528,6 +589,27 @@ function App() {
       isInstallingRef.current = false
       setWorkingAction(null)
     }
+  }
+
+  function toggleSkillIndex(index: number) {
+    setSelectedSkillIndices((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.add(index)
+      }
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    setSelectedSkillIndices((prev) => {
+      if (prev.size === githubSkillPreviews.length) {
+        return new Set()
+      }
+      return new Set(githubSkillPreviews.map((_, i) => i))
+    })
   }
 
   function enhanceInstallError(raw: string): string {
@@ -551,9 +633,12 @@ function App() {
     setModalKind(null)
     setGithubUrl('')
     setInstallResult(null)
+    setMultiInstallResults([])
     setInstallPhase('input')
     setInstallError(null)
     setDuplicateWarning(null)
+    setGithubSkillPreviews([])
+    setSelectedSkillIndices(new Set())
   }
 
   async function handleToggleDebugMode(next: boolean) {
@@ -902,6 +987,65 @@ function App() {
                 <div className="text-[12px] text-[var(--text-muted)]">{githubUrl}</div>
               </div>
             </div>
+          ) : installPhase === 'installing-multi' ? (
+            <div className="flex flex-col items-center gap-4 py-8">
+              <LoaderCircle className="h-10 w-10 animate-spin text-[var(--accent)]" />
+              <div className="space-y-1 text-center">
+                <div className="text-[14px] font-medium text-[var(--text-primary)]">
+                  {t('installingMultiple').replace('{count}', String(selectedSkillIndices.size))}
+                </div>
+                <div className="text-[12px] text-[var(--text-muted)]">{githubUrl}</div>
+              </div>
+            </div>
+          ) : installPhase === 'selecting' ? (
+            <div className="space-y-3">
+              <div className="text-[13px] text-[var(--text-secondary)]">
+                {t('selectSkills')}
+                <span className="ml-2 text-[12px] text-[var(--text-muted)]">
+                  ({t('skillCount').replace('{count}', String(githubSkillPreviews.length))})
+                </span>
+              </div>
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-[8px] border border-[var(--line-soft)] bg-[var(--panel-0)] px-3 py-2 transition hover:bg-[var(--panel-1)]">
+                <input
+                  type="checkbox"
+                  checked={selectedSkillIndices.size === githubSkillPreviews.length && githubSkillPreviews.length > 0}
+                  onChange={toggleSelectAll}
+                  className="h-4 w-4 accent-[var(--accent)]"
+                />
+                <span className="text-[13px] font-medium text-[var(--text-primary)]">{t('selectAll')}</span>
+              </label>
+              <div className="max-h-[300px] space-y-1 overflow-y-auto">
+                {githubSkillPreviews.map((preview, i) => (
+                  <label
+                    key={preview.subpath}
+                    className="flex cursor-pointer items-start gap-2.5 rounded-[8px] border border-[var(--line-soft)] bg-[var(--panel-0)] px-3 py-2.5 transition hover:bg-[var(--panel-1)]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSkillIndices.has(i)}
+                      onChange={() => toggleSkillIndex(i)}
+                      className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-medium text-[var(--text-primary)]">{preview.name}</div>
+                      <div className="text-[12px] text-[var(--text-muted)] truncate">{preview.description || t('noDescription')}</div>
+                      <div className="text-[11px] text-[var(--text-muted)] opacity-60">{preview.subpath}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <DialogActions>
+                <SecondaryButton label={t('cancel')} onClick={closeInstallDialog} />
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmMultiInstall()}
+                  disabled={selectedSkillIndices.size === 0}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[var(--accent)] bg-[var(--accent)] px-4 text-[13px] font-medium text-white transition hover:opacity-90 active:scale-95 active:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t('install')} ({selectedSkillIndices.size})
+                </button>
+              </DialogActions>
+            </div>
           ) : installPhase === 'input' || installPhase === 'error' ? (
             <div className="space-y-3">
               <input
@@ -937,22 +1081,41 @@ function App() {
                 </button>
               </DialogActions>
             </div>
-          ) : installPhase === 'done' && installResult ? (
+          ) : installPhase === 'done' && (installResult || multiInstallResults.length > 0) ? (
             <div className="space-y-3">
               <div className="rounded-[8px] border border-[var(--success-line)] bg-[var(--success-soft)] px-3 py-2 text-[13px] text-[var(--success-text)]">
                 {t('installSuccess')}
               </div>
-              <div className="text-[14px] text-[var(--text-primary)]">
-                {installResult.skill.name}
-              </div>
-              <div className="text-[13px] text-[var(--text-secondary)]">
-                {installResult.skill.description || t('noDescription')}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {installResult.installedPlatforms.map((p) => (
-                  <PlatformMiniBadge key={p} platform={p} />
-                ))}
-              </div>
+              {installResult ? (
+                <div className="space-y-2">
+                  <div className="text-[14px] text-[var(--text-primary)]">
+                    {installResult.skill.name}
+                  </div>
+                  <div className="text-[13px] text-[var(--text-secondary)]">
+                    {installResult.skill.description || t('noDescription')}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {installResult.installedPlatforms.map((p) => (
+                      <PlatformMiniBadge key={p} platform={p} />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {multiInstallResults.length > 0 ? (
+                <div className="max-h-[300px] space-y-2 overflow-y-auto">
+                  {multiInstallResults.map((r) => (
+                    <div key={r.skill.name} className="rounded-[8px] border border-[var(--line-soft)] bg-[var(--panel-0)] px-3 py-2">
+                      <div className="text-[13px] font-medium text-[var(--text-primary)]">{r.skill.name}</div>
+                      <div className="text-[12px] text-[var(--text-secondary)]">{r.skill.description || t('noDescription')}</div>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {r.installedPlatforms.map((p) => (
+                          <PlatformMiniBadge key={p} platform={p} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               <DialogActions>
                 <SecondaryButton label={t('done')} onClick={closeInstallDialog} />
               </DialogActions>

@@ -80,6 +80,20 @@ pub struct InstallFromGitHubResult {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+pub struct GitHubScanResult {
+  pub repo_url: String,
+  pub subpath: Option<String>,
+  pub skills: Vec<GitHubSkillPreview>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct GitHubSkillPreview {
+  pub name: String,
+  pub description: String,
+  pub subpath: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TargetSkillEntry {
   pub name: String,
   pub path: String,
