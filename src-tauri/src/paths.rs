@@ -197,6 +197,16 @@ pub fn create_symlink(source: &Path, target: &Path) -> Result<()> {
   Ok(())
 }
 
+#[cfg(windows)]
+pub fn create_symlink(source: &Path, target: &Path) -> Result<()> {
+  if source.is_dir() {
+    std::os::windows::fs::symlink_dir(source, target)?;
+  } else {
+    std::os::windows::fs::symlink_file(source, target)?;
+  }
+  Ok(())
+}
+
 pub fn normalize_path(path: &str) -> String {
   fs::canonicalize(path)
     .map(|value| value.display().to_string())
