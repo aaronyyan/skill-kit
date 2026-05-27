@@ -12,6 +12,8 @@
   <a href="README.zh-CN.md">中文</a> | English
 </p>
 
+![2560X1960/image.png](https://backup.fukit.cn/autoupload/en/Hs4yOe0DD5blOyn6kcESAbMpbbjFj-XZeOSs8VxRDiGyl5f0KlZfm6UsKj-HyTuv/20260527/eBGv/2560X1960/image.png)
+
 ## ✨ Features
 
 - **Unified View**: Auto-scan and display Skills from Claude Code, OpenAI Codex, OpenClaw, Hermes and more
