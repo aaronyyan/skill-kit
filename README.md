@@ -1,18 +1,41 @@
-**SkillKit**
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" width="128" height="128" alt="SkillKit Icon">
+</p>
 
-SkillKit 是一款专为开发者打造的 macOS 桌面工具，旨在通过聚合视图统一管理分布在不同 AI 编码平台（Claude Code、Codex、OpenClaw、Hermes）中的 Skills。
+<h1 align="center">SkillKit</h1>
 
-### ✨ 核心功能
+<p align="center">
+  <em>A cross-platform desktop tool that unifies Skills management across AI coding platforms. Supports macOS, Windows, and Linux.</em>
+</p>
 
-- 四大平台 Skills 一键聚合扫描与展示
-- 文件系统实时监听，变更自动刷新
-- 跨平台 Skill 一键同步与迁移
-- GitHub URL 一键安装 Skill
-- 本地 Registry 持久化管理
+<p align="center">
+  <a href="README.zh-CN.md">中文</a> | English
+</p>
 
-### 📥 快速安装
+## ✨ Features
 
-Bash
+- **Unified View**: Auto-scan and display Skills from Claude Code, OpenAI Codex, OpenClaw, Hermes and more
+- **Real-time Sync**: Built-in file system watcher, changes refresh automatically
+- **Cross-platform Sync**: One-click Skill sync and migration across AI platforms
+- **GitHub Install**: Install Skills directly via GitHub URL, with batch install support
+- **Local Registry**: Persistent management, zero cloud dependency
+
+## 📥 Download
+
+Download the installer for your platform from [Releases](https://github.com/aaronyyan/skill-kit/releases/latest):
+
+| Platform | File |
+|:---|:---|
+| macOS (Apple Silicon) | `SkillKit_aarch64.dmg` |
+| macOS (Intel) | `SkillKit_x64.dmg` |
+| Windows | `SkillKit_x64-setup.exe` |
+| Linux (Debian/Ubuntu) | `SkillKit_amd64.deb` |
+| Linux (AppImage) | `SkillKit_amd64.AppImage` |
+| Linux (Fedora/RHEL) | `SkillKit_x86_64.rpm` |
+
+## 🔧 Build from Source
+
+Make sure you have Node.js and Rust installed.
 
 ```bash
 git clone https://github.com/aaronyyan/skill-kit.git
@@ -21,28 +44,28 @@ npm install
 npm run tauri dev
 ```
 
-构建生产版本请执行 npm run tauri build。
+Build for production: `npm run tauri build`
 
-------
+## 🛠 Tech Stack
 
-### 🛠 技术栈
+| Module | Technology |
+|:---|:---|
+| Framework | Tauri v2 (Rust) |
+| Frontend | React 19 + TypeScript + Tailwind CSS |
+| Animation | Framer Motion |
+| File Watcher | notify (Rust) |
 
-- **框架**：Tauri v2 (Rust)
-- **前端**：React 19 + TypeScript + Tailwind CSS
-- **动效**：Framer Motion
-- **文件监听**：notify (Rust)
+## 🌐 Supported AI Platforms
 
-------
+| Platform | Skill Directory |
+|:---|:---|
+| Claude Code | `~/.claude/skills` |
+| Codex | `~/.codex/skills` |
+| OpenClaw | `~/.openclaw/skills` |
+| Hermes | `~/.hermes/skills` |
 
-### 🌐 支持平台
+---
 
-| 平台        | Skill 目录         |
-| ----------- | ------------------ |
-| Claude Code | ~/.claude/skills   |
-| Codex       | ~/.codex/skills    |
-| OpenClaw    | ~/.openclaw/skills |
-| Hermes      | ~/.hermes/skills   |
-
-------
-
-**SkillKit** —— 让你的 AI Skills 实现真正的跨平台统一管理。
+<p align="center">
+  <b>Star this repo if you find it useful!</b>
+</p>

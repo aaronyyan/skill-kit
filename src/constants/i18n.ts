@@ -78,6 +78,10 @@ export const COPY = {
     clearLogs: '清空',
     duplicateSkill: '该 Skill 已存在',
     duplicateSkillDesc: '该 Skill 已存在',
+    selectSkills: '选择要安装的 Skill',
+    selectAll: '全选',
+    skillCount: '{count} 个 Skill',
+    installingMultiple: '正在安装 {count} 个 Skill...',
   },
   en: {
     localSkills: 'Local skills',
@@ -149,6 +153,10 @@ export const COPY = {
     clearLogs: 'Clear',
     duplicateSkill: 'Skill already exists',
     duplicateSkillDesc: 'Skill already exists',
+    selectSkills: 'Select skills to install',
+    selectAll: 'Select all',
+    skillCount: '{count} skills',
+    installingMultiple: 'Installing {count} skills...',
   },
 } as const
 

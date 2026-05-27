@@ -110,3 +110,15 @@ export interface InstallFromGitHubResult {
   skill: PlatformSkillItem
   installedPlatforms: PlatformKind[]
 }
+
+export interface GitHubScanResult {
+  repoUrl: string
+  subpath: string | null
+  skills: GitHubSkillPreview[]
+}
+
+export interface GitHubSkillPreview {
+  name: string
+  description: string
+  subpath: string
+}

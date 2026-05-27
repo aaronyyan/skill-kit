@@ -11,7 +11,7 @@ use walkdir::WalkDir;
 use crate::paths::{self, AppPaths};
 use crate::registry;
 use crate::types::{
-  CreateSkillInput, InstallFromGitHubResult, PlatformKind, SkillRecord,
+  CreateSkillInput, GitHubScanResult, GitHubSkillPreview, InstallFromGitHubResult, PlatformKind, SkillRecord,
 };
 
 pub fn create_skill_inner(
@@ -284,14 +284,14 @@ pub fn install_from_github_inner<R: Runtime>(
   app_paths: &AppPaths,
   url: &str,
 ) -> Result<InstallFromGitHubResult> {
-  let normalized =
-    crate::parse::normalize_github_repo_url(url).ok_or_else(|| anyhow!("请输入有效的 GitHub URL"))?;
+  let (normalized, subpath) =
+    crate::parse::parse_github_url(url).ok_or_else(|| anyhow!("请输入有效的 GitHub URL"))?;
 
   let ts = registry::unix_timestamp();
   let tmp_dir = std::env::temp_dir().join(format!("skillkit-gh-{ts}"));
 
   let clone_result = (|| -> Result<InstallFromGitHubResult> {
-    crate::debug_log!(Some(app), "git clone: {}", normalized);
+    crate::debug_log!(Some(app), "git clone: {} (subpath: {:?})", normalized, subpath);
     let output = Command::new("git")
       .args([
         "clone",
@@ -311,16 +311,39 @@ pub fn install_from_github_inner<R: Runtime>(
     }
     crate::debug_log!(Some(app), "git clone 成功，临时目录: {}", tmp_dir.display());
 
-    let skill_dir = find_skill_md(&tmp_dir, 3)
-      .ok_or_else(|| anyhow!("仓库中没有找到 SKILL.md 文件。"))?;
+    // If a subpath was specified (e.g. skills/frontend-design), look there first
+    let skill_dir = if let Some(ref sub) = subpath {
+      let candidate = tmp_dir.join(sub);
+      if candidate.join("SKILL.md").exists() {
+        crate::debug_log!(Some(app), "子路径找到 SKILL.md: {}", candidate.display());
+        candidate
+      } else if candidate.exists() {
+        // Subpath exists but no SKILL.md directly in it — search inside
+        find_skill_md(&candidate, 3)
+          .ok_or_else(|| anyhow!("指定路径 {} 中没有找到 SKILL.md 文件。", sub))?
+      } else {
+        crate::debug_log!(Some(app), "子路径不存在: {}, 回退到全局搜索", candidate.display());
+        find_skill_md(&tmp_dir, 3)
+          .ok_or_else(|| anyhow!("仓库中没有找到 SKILL.md 文件。"))?
+      }
+    } else {
+      find_skill_md(&tmp_dir, 3)
+        .ok_or_else(|| anyhow!("仓库中没有找到 SKILL.md 文件。"))?
+    };
     crate::debug_log!(Some(app), "找到 SKILL.md: {}", skill_dir.display());
 
     let name = crate::parse::extract_name(&skill_dir)
       .or_else(|| {
-        normalized
-          .rsplit('/')
-          .next()
-          .map(|s| s.trim_end_matches(".git").to_string())
+        // Fall back to the last segment of the subpath, or the repo name
+        subpath
+          .as_ref()
+          .and_then(|s| s.split('/').last().map(|v| v.to_string()))
+          .or_else(|| {
+            normalized
+              .rsplit('/')
+              .next()
+              .map(|s| s.trim_end_matches(".git").to_string())
+          })
       })
       .unwrap_or_else(|| "unnamed-skill".to_string());
     crate::debug_log!(Some(app), "提取到 name: {}", name);
@@ -399,6 +422,179 @@ fn find_skill_md(root: &Path, max_depth: usize) -> Option<PathBuf> {
     }
   }
   best.map(|(_, path)| path.parent().unwrap_or(root).to_path_buf())
+}
+
+fn find_all_skill_md(root: &Path, max_depth: usize) -> Vec<PathBuf> {
+  let mut results = Vec::new();
+  for entry in WalkDir::new(root).max_depth(max_depth) {
+    let entry = match entry {
+      Ok(e) => e,
+      Err(_) => continue,
+    };
+    if entry
+      .file_name()
+      .to_string_lossy()
+      .eq_ignore_ascii_case("SKILL.md")
+    {
+      if let Some(parent) = entry.path().parent() {
+        results.push(parent.to_path_buf());
+      }
+    }
+  }
+  results
+}
+
+fn clone_repo(url: &str, tmp_dir: &Path) -> Result<()> {
+  let output = Command::new("git")
+    .args([
+      "clone",
+      "--depth",
+      "1",
+      url,
+      &tmp_dir.display().to_string(),
+    ])
+    .output()
+    .context("无法运行 git，请确认已安装 git")?;
+
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    return Err(map_git_error(&stderr));
+  }
+  Ok(())
+}
+
+pub fn scan_github_repo_inner<R: Runtime>(
+  app: &AppHandle<R>,
+  url: &str,
+) -> Result<GitHubScanResult> {
+  let (normalized, url_subpath) =
+    crate::parse::parse_github_url(url).ok_or_else(|| anyhow!("请输入有效的 GitHub URL"))?;
+
+  let ts = registry::unix_timestamp();
+  let tmp_dir = std::env::temp_dir().join(format!("skillkit-scan-{ts}"));
+
+  let result = (|| -> Result<GitHubScanResult> {
+    crate::debug_log!(Some(app), "scan: git clone: {} (subpath: {:?})", normalized, url_subpath);
+    clone_repo(&normalized, &tmp_dir)?;
+    crate::debug_log!(Some(app), "scan: clone 成功");
+
+    let skill_dirs = find_all_skill_md(&tmp_dir, 4);
+    crate::debug_log!(Some(app), "scan: 找到 {} 个 SKILL.md", skill_dirs.len());
+
+    let mut previews = Vec::new();
+    for skill_dir in &skill_dirs {
+      let name = crate::parse::extract_name(skill_dir)
+        .unwrap_or_else(|| {
+          skill_dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unnamed")
+            .to_string()
+        });
+      let description = crate::parse::extract_description(skill_dir);
+      let subpath = skill_dir
+        .strip_prefix(&tmp_dir)
+        .unwrap_or(skill_dir)
+        .to_string_lossy()
+        .to_string();
+
+      previews.push(GitHubSkillPreview {
+        name,
+        description,
+        subpath,
+      });
+    }
+
+    Ok(GitHubScanResult {
+      repo_url: normalized,
+      subpath: url_subpath,
+      skills: previews,
+    })
+  })();
+
+  let _ = fs::remove_dir_all(&tmp_dir);
+  result
+}
+
+pub fn install_multiple_from_github_inner<R: Runtime>(
+  app: &AppHandle<R>,
+  app_paths: &AppPaths,
+  url: &str,
+  subpaths: &[String],
+) -> Result<Vec<InstallFromGitHubResult>> {
+  let (normalized, _subpath) =
+    crate::parse::parse_github_url(url).ok_or_else(|| anyhow!("请输入有效的 GitHub URL"))?;
+
+  let ts = registry::unix_timestamp();
+  let tmp_dir = std::env::temp_dir().join(format!("skillkit-gh-{ts}"));
+
+  let result = (|| -> Result<Vec<InstallFromGitHubResult>> {
+    crate::debug_log!(Some(app), "multi-install: git clone: {}", normalized);
+    clone_repo(&normalized, &tmp_dir)?;
+    crate::debug_log!(Some(app), "multi-install: clone 成功");
+
+    let mut results = Vec::new();
+    for subpath in subpaths {
+      let skill_dir = tmp_dir.join(subpath);
+      if !skill_dir.join("SKILL.md").exists() {
+        crate::debug_log!(Some(app), "multi-install: 跳过 {} (无 SKILL.md)", subpath);
+        continue;
+      }
+
+      let name = crate::parse::extract_name(&skill_dir)
+        .or_else(|| {
+          subpath.split('/').last().map(|s| s.to_string())
+        })
+        .unwrap_or_else(|| "unnamed-skill".to_string());
+      let description = crate::parse::extract_description(&skill_dir);
+
+      let skill_record = create_skill_inner(
+        app_paths,
+        CreateSkillInput {
+          name,
+          category: None,
+          description: Some(description),
+          tags: None,
+        },
+      )?;
+
+      let registry_dir = app_paths.skills_root.join(&skill_record.id);
+      paths::copy_dir(&skill_dir, &registry_dir)?;
+
+      let mut persisted = registry::load_persisted_skill(app_paths, &skill_record.id)?;
+      persisted.github_url = Some(normalized.clone());
+      persisted.hash = registry::compute_dir_hash(&registry_dir)?;
+      registry::write_skill_json(app_paths, &persisted)?;
+
+      let mut installed_platforms = Vec::new();
+      for (platform, root) in &app_paths.target_roots {
+        let platform_dir = root.join(&persisted.name);
+        match paths::copy_dir(&registry_dir, &platform_dir) {
+          Ok(_) => {
+            installed_platforms.push(platform.clone());
+            if !persisted.targets.contains(platform) {
+              persisted.targets.push(platform.clone());
+            }
+          }
+          Err(e) => {
+            log::warn!("安装到 {:?} 失败: {}", platform, e);
+          }
+        }
+      }
+      registry::write_skill_json(app_paths, &persisted)?;
+
+      let skill = registry::to_skill_record(app_paths, registry::load_persisted_skill(app_paths, &skill_record.id)?)?;
+      results.push(InstallFromGitHubResult {
+        skill,
+        installed_platforms,
+      });
+    }
+
+    Ok(results)
+  })();
+
+  let _ = fs::remove_dir_all(&tmp_dir);
+  result
 }
 
 fn map_git_error(stderr: &str) -> anyhow::Error {
