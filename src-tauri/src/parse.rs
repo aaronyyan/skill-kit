@@ -3,6 +3,7 @@ use std::path::Path;
 
 use serde_json;
 
+/// 从 SKILL.md frontmatter 中提取 description 字段
 pub fn extract_description(skill_dir: &Path) -> String {
   let skill_file = skill_dir.join("SKILL.md");
   if let Ok(content) = fs::read_to_string(&skill_file) {
@@ -59,6 +60,23 @@ pub fn extract_description(skill_dir: &Path) -> String {
   String::new()
 }
 
+/// 从 SKILL.md frontmatter 中提取 category 字段
+/// 例如: `category: frontend` → Some("frontend")
+pub fn extract_category(skill_dir: &Path) -> Option<String> {
+  let content = fs::read_to_string(skill_dir.join("SKILL.md")).ok()?;
+  for line in content.lines() {
+    let trimmed = line.trim();
+    if let Some(value) = trimmed.strip_prefix("category:") {
+      let val = value.trim().trim_matches('"').trim_matches('\'').to_string();
+      if !val.is_empty() {
+        return Some(val);
+      }
+    }
+  }
+  None
+}
+
+/// 从 SKILL.md frontmatter 中提取 name 字段
 pub fn extract_name(skill_dir: &Path) -> Option<String> {
   let skill_file = skill_dir.join("SKILL.md");
   let content = fs::read_to_string(skill_file).ok()?;
@@ -71,6 +89,7 @@ pub fn extract_name(skill_dir: &Path) -> Option<String> {
   None
 }
 
+/// 清理 description：如果为空或是 block scalar 标记，从正文提取摘要
 pub fn sanitize_description(skill_dir: &Path, description: String) -> String {
   let trimmed = description.trim();
   if !trimmed.is_empty() && !matches!(trimmed, "|" | ">" | "|-" | ">-") {
@@ -152,6 +171,7 @@ fn extract_body_summary(skill_dir: &Path) -> Option<String> {
   }
 }
 
+/// 从 skill 目录中提取 GitHub URL（检查 .git/config、SKILL.md、README.md、package.json）
 pub fn extract_github_url(skill_dir: &Path) -> Option<String> {
   // 1. Check .git/config in the skill directory
   let git_config = skill_dir.join(".git").join("config");
@@ -240,13 +260,14 @@ fn first_github_url(content: &str) -> Option<String> {
     .find_map(normalize_github_repo_url)
 }
 
+/// 标准化 GitHub 仓库 URL（去掉子路径，只保留 owner/repo）
 pub fn normalize_github_repo_url(token: &str) -> Option<String> {
   parse_github_url(token).map(|(repo, _subpath)| repo)
 }
 
-/// Parse a GitHub URL into (repo_url, optional_subpath).
-/// e.g. "https://github.com/anthropics/skills/tree/main/skills/frontend-design"
-///   -> ("https://github.com/anthropics/skills", Some("skills/frontend-design"))
+/// 解析 GitHub URL 为 (仓库URL, 可选子路径)
+/// 例如: "https://github.com/anthropics/skills/tree/main/skills/frontend-design"
+///   → ("https://github.com/anthropics/skills", Some("skills/frontend-design"))
 pub fn parse_github_url(token: &str) -> Option<(String, Option<String>)> {
   let trimmed = token.trim_matches(|ch: char| ['(', ')', '[', ']', '{', '}', '"', '\''].contains(&ch));
 

@@ -1,3 +1,7 @@
+// ── 按钮组件 ──────────────────────────────────────────────────────
+// DialogActions: 对话框按钮栏  |  SecondaryButton: 次要按钮
+// DangerActionButton: 危险操作按钮  |  EmptyState: 空状态占位
+
 import { LoaderCircle } from 'lucide-react'
 
 export function DialogActions({ children }: { children: React.ReactNode }) {

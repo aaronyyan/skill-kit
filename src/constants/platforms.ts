@@ -1,3 +1,9 @@
+// ── 平台与分类常量 ────────────────────────────────────────────────
+// PLATFORM_TABS: 平台 Tab 配置（图标、颜色）
+// CATEGORY_ICONS: 分类图标映射
+// TAG_COLOR_MAP: 分类标签颜色
+// SKILL_CATEGORY_MAP: skill 名称 → 分类的硬编码映射（兜底用）
+
 import { Boxes, Brain, Brush, Code2, FileText, LayoutTemplate, Package, SearchCheck, Settings2, Sparkles, Bot } from 'lucide-react'
 import type { PlatformKind } from '../types'
 import openaiIcon from '../assets/brands/openai.png'

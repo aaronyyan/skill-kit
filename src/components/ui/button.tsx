@@ -1,3 +1,5 @@
+// ── 按钮组件（基于 class-variance-authority）──────────────────────
+
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Slot } from '@radix-ui/react-slot'

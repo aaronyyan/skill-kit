@@ -1,3 +1,7 @@
+// ── 基础 UI 组件 ──────────────────────────────────────────────────
+// AppDialog: 通用对话框  |  MenuRoot/MenuItem: 右键菜单
+// PanelCard: 面板卡片
+
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { AnimatePresence, motion } from 'framer-motion'

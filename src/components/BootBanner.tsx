@@ -1,3 +1,6 @@
+// ── 启动横幅 ──────────────────────────────────────────────────────
+// 应用启动时显示的加载进度指示器
+
 import type { Translate } from '../constants/i18n'
 
 export type BootPhase =

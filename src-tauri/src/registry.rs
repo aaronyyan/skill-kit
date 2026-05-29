@@ -13,6 +13,7 @@ use walkdir::WalkDir;
 use crate::paths::{self, AppPaths, SETTINGS_SCAN_DEPTH};
 use crate::types::{ActivityEntry, InstallMode, PersistedSkill, SkillRecord, SkillTargetStatus};
 
+/// 加载 registry 中所有 skill 记录
 pub fn load_registry_skills(app_paths: &AppPaths) -> Result<Vec<SkillRecord>> {
   let mut items = Vec::new();
   for entry in fs::read_dir(&app_paths.skills_root)? {
@@ -31,6 +32,7 @@ pub fn load_registry_skills(app_paths: &AppPaths) -> Result<Vec<SkillRecord>> {
   Ok(items)
 }
 
+/// 将持久化的 skill 转为完整的 SkillRecord（含各平台安装状态和一致性检测）
 pub fn to_skill_record(app_paths: &AppPaths, persisted: PersistedSkill) -> Result<SkillRecord> {
   let skill_dir = app_paths.skills_root.join(&persisted.id);
   let status_targets = [
@@ -81,11 +83,13 @@ pub fn to_skill_record(app_paths: &AppPaths, persisted: PersistedSkill) -> Resul
   })
 }
 
+/// 从 skill.json 加载单个 skill 的持久化数据
 pub fn load_persisted_skill(app_paths: &AppPaths, skill_id: &str) -> Result<PersistedSkill> {
   let raw = fs::read_to_string(app_paths.skills_root.join(skill_id).join("skill.json"))?;
   Ok(serde_json::from_str(&raw)?)
 }
 
+/// 将 skill 数据写入 skill.json
 pub fn write_skill_json(app_paths: &AppPaths, skill: &PersistedSkill) -> Result<()> {
   let directory = app_paths.skills_root.join(&skill.id);
   fs::create_dir_all(&directory)?;
@@ -94,6 +98,7 @@ pub fn write_skill_json(app_paths: &AppPaths, skill: &PersistedSkill) -> Result<
   Ok(())
 }
 
+/// 计算目录内容的 SHA-256 哈希（一致性检测用）
 pub fn compute_dir_hash(path: impl AsRef<Path>) -> Result<String> {
   let mut hasher = Sha256::new();
   let mut files: BTreeSet<PathBuf> = BTreeSet::new();
@@ -130,6 +135,7 @@ fn should_ignore(path: &Path) -> bool {
   })
 }
 
+/// 追加操作日志
 pub fn append_log(app_paths: &AppPaths, action: &str) -> Result<()> {
   let timestamp = iso_now();
   let mut file = fs::OpenOptions::new()
@@ -140,6 +146,7 @@ pub fn append_log(app_paths: &AppPaths, action: &str) -> Result<()> {
   Ok(())
 }
 
+/// 读取操作日志（最近 50 条，倒序）
 pub fn read_activity_log(app_paths: &AppPaths) -> Result<Vec<ActivityEntry>> {
   if !app_paths.operations_log.exists() {
     return Ok(Vec::new());
@@ -160,6 +167,7 @@ pub fn read_activity_log(app_paths: &AppPaths) -> Result<Vec<ActivityEntry>> {
   Ok(entries.into_iter().take(50).collect())
 }
 
+/// 生成 skill ID：slug化的名字 + 时间戳
 pub fn new_skill_id(name: &str) -> String {
   format!("{}-{}", slugify(name), unix_timestamp())
 }
@@ -189,6 +197,7 @@ pub fn iso_now() -> String {
   unix_timestamp().to_string()
 }
 
+/// 返回 HH:MM:SS 格式的当前时间（用于调试日志）
 pub fn time_now() -> String {
   let now = std::time::SystemTime::now()
     .duration_since(std::time::UNIX_EPOCH)
