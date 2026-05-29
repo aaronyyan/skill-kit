@@ -4,7 +4,7 @@ use std::{
   process::Command,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use tauri::{AppHandle, Emitter, Runtime};
 use walkdir::WalkDir;
 
@@ -14,6 +14,30 @@ use crate::types::{
   CreateSkillInput, GitHubScanResult, GitHubSkillPreview, InstallFromGitHubResult, PlatformKind, SkillRecord,
 };
 
+// ── 错误码定义（用于前端 i18n 翻译）────────────────────────────────
+// 前端根据 code 查找对应语言的翻译文案，message 作为兜底显示
+
+const ERR_SYNC_DIRECTION_UNSUPPORTED: &str = "sync_direction_unsupported"; // 不支持的同步方向
+const ERR_INVALID_SOURCE_PATH: &str = "invalid_source_path";             // 无效的源路径
+const ERR_SKILL_MD_MISSING: &str = "skill_md_missing";                   // 源 skill 缺少 SKILL.md
+const ERR_SKILL_NAME_UNRESOLVABLE: &str = "skill_name_unresolvable";     // 无法解析 skill 名称
+const ERR_TARGET_EXISTS: &str = "target_exists";                          // 目标已存在同名 skill
+const ERR_INVALID_GITHUB_URL: &str = "invalid_github_url";               // 无效的 GitHub URL
+const ERR_GIT_NOT_FOUND: &str = "git_not_found";                         // git 未安装
+const ERR_NO_SKILL_MD_IN_PATH: &str = "no_skill_md_in_path";             // 指定路径无 SKILL.md
+const ERR_NO_SKILL_MD_IN_REPO: &str = "no_skill_md_in_repo";             // 仓库中无 SKILL.md
+const ERR_GIT_NETWORK_ERROR: &str = "git_network_error";                 // 网络连接失败
+const ERR_GIT_REPO_NOT_FOUND: &str = "git_repo_not_found";               // 仓库不存在
+const ERR_GIT_PERMISSION_DENIED: &str = "git_permission_denied";         // 权限不足
+const ERR_GIT_CLONE_FAILED: &str = "git_clone_failed";                   // git 克隆失败
+const ERR_TARGET_UNMANAGED_CONFLICT: &str = "target_unmanaged_conflict"; // 目标有未管理的目录
+
+/// 创建带错误码的结构化错误，前端通过 JSON 解析 code 字段做 i18n 翻译
+fn app_error(code: &str, message: &str) -> anyhow::Error {
+  anyhow::anyhow!("{{\"code\":\"{}\",\"message\":\"{}\"}}", code, message.replace('"', "\\\""))
+}
+
+/// 在 registry 中创建新 skill（生成 SKILL.md 骨架 + skill.json）
 pub fn create_skill_inner(
   app_paths: &AppPaths,
   payload: CreateSkillInput,
@@ -54,6 +78,7 @@ pub fn create_skill_inner(
   registry::to_skill_record(app_paths, persisted)
 }
 
+/// 将 registry 中的 skill 通过 symlink 安装到指定平台
 pub fn install_skill_inner(
   app_paths: &AppPaths,
   skill_id: &str,
@@ -64,7 +89,7 @@ pub fn install_skill_inner(
   if target_path.exists() || paths::symlink_metadata_exists(&target_path) {
     let meta = fs::symlink_metadata(&target_path)?;
     if !meta.file_type().is_symlink() {
-      return Err(anyhow!("target already contains an unmanaged directory"));
+      return Err(app_error(ERR_TARGET_UNMANAGED_CONFLICT, "target already contains an unmanaged directory"));
     }
     fs::remove_file(&target_path)?;
   }
@@ -80,6 +105,7 @@ pub fn install_skill_inner(
   registry::to_skill_record(app_paths, persisted)
 }
 
+/// 从指定平台卸载 skill（删除 symlink 或目录）
 pub fn uninstall_skill_inner(
   app_paths: &AppPaths,
   skill_id: &str,
@@ -101,6 +127,7 @@ pub fn uninstall_skill_inner(
   registry::to_skill_record(app_paths, persisted)
 }
 
+/// 同步单个 skill 到所有已安装的平台
 pub fn sync_skill_inner(app_paths: &AppPaths, skill_id: &str) -> Result<SkillRecord> {
   let persisted = registry::load_persisted_skill(app_paths, skill_id)?;
   for target in persisted.targets.clone() {
@@ -110,6 +137,7 @@ pub fn sync_skill_inner(app_paths: &AppPaths, skill_id: &str) -> Result<SkillRec
   registry::to_skill_record(app_paths, refreshed)
 }
 
+/// 同步所有 skill
 pub fn sync_all_inner(app_paths: &AppPaths) -> Result<Vec<SkillRecord>> {
   let persisted = registry::load_registry_skills(app_paths)?;
   let mut synced = Vec::new();
@@ -119,6 +147,7 @@ pub fn sync_all_inner(app_paths: &AppPaths) -> Result<Vec<SkillRecord>> {
   Ok(synced)
 }
 
+/// 从 registry 彻底删除 skill（清理所有平台的安装和 registry 记录）
 pub fn delete_skill_inner(app_paths: &AppPaths, skill_id: &str) -> Result<()> {
   let persisted = registry::load_persisted_skill(app_paths, skill_id)?;
   for target in persisted.targets {
@@ -147,6 +176,7 @@ pub fn repair_drift_inner(
   install_skill_inner(app_paths, skill_id, target)
 }
 
+/// 判断是否支持从源平台直接同步到目标平台
 pub fn supports_direct_sync(
   source_platform: &PlatformKind,
   target_platform: &PlatformKind,
@@ -154,6 +184,7 @@ pub fn supports_direct_sync(
   !matches!(source_platform, PlatformKind::Claude) && source_platform != target_platform
 }
 
+/// 跨平台同步：在目标平台创建指向源平台 skill 的 symlink
 pub fn sync_platform_skill_inner(
   app_paths: &AppPaths,
   source_path: &Path,
@@ -161,19 +192,19 @@ pub fn sync_platform_skill_inner(
   target_platform: PlatformKind,
 ) -> Result<()> {
   if !supports_direct_sync(&source_platform, &target_platform) {
-    return Err(anyhow!("当前版本暂不支持这个同步方向"));
+    return Err(app_error(ERR_SYNC_DIRECTION_UNSUPPORTED, "Sync direction not supported in this version"));
   }
 
   let source_skill_dir =
-    paths::resolve_skill_dir(source_path).ok_or_else(|| anyhow!("无效的源路径"))?;
+    paths::resolve_skill_dir(source_path).ok_or_else(|| app_error(ERR_INVALID_SOURCE_PATH, "Invalid source path"))?;
   if !source_skill_dir.join("SKILL.md").exists() {
-    return Err(anyhow!("源 skill 缺少 SKILL.md"));
+    return Err(app_error(ERR_SKILL_MD_MISSING, "Source skill is missing SKILL.md"));
   }
 
   let name = source_path
     .file_name()
     .and_then(|value| value.to_str())
-    .ok_or_else(|| anyhow!("无法解析 skill 名称"))?
+    .ok_or_else(|| app_error(ERR_SKILL_NAME_UNRESOLVABLE, "Cannot resolve skill name"))?
     .to_string();
   let target_path = paths::target_root(app_paths, &target_platform).join(&name);
   if target_path.exists() || paths::symlink_metadata_exists(&target_path) {
@@ -184,7 +215,7 @@ pub fn sync_platform_skill_inner(
     {
       return Ok(());
     }
-    return Err(anyhow!("目标平台已存在同名 skill"));
+    return Err(app_error(ERR_TARGET_EXISTS, "Target platform already has a skill with this name"));
   }
   paths::create_symlink(&source_skill_dir, &target_path)?;
   Ok(())
@@ -279,13 +310,14 @@ pub fn scan_existing_platforms_for_name(
   platforms
 }
 
+/// 从 GitHub 安装 skill：clone → 复制到 registry → 复制到各平台
 pub fn install_from_github_inner<R: Runtime>(
   app: &AppHandle<R>,
   app_paths: &AppPaths,
   url: &str,
 ) -> Result<InstallFromGitHubResult> {
   let (normalized, subpath) =
-    crate::parse::parse_github_url(url).ok_or_else(|| anyhow!("请输入有效的 GitHub URL"))?;
+    crate::parse::parse_github_url(url).ok_or_else(|| app_error(ERR_INVALID_GITHUB_URL, "Please enter a valid GitHub URL"))?;
 
   let ts = registry::unix_timestamp();
   let tmp_dir = std::env::temp_dir().join(format!("skillkit-gh-{ts}"));
@@ -301,7 +333,7 @@ pub fn install_from_github_inner<R: Runtime>(
         &tmp_dir.display().to_string(),
       ])
       .output()
-      .context("无法运行 git，请确认已安装 git")?;
+      .map_err(|_| app_error(ERR_GIT_NOT_FOUND, "Cannot run git, please ensure git is installed"))?;
 
     if !output.status.success() {
       let stderr = String::from_utf8_lossy(&output.stderr);
@@ -320,15 +352,15 @@ pub fn install_from_github_inner<R: Runtime>(
       } else if candidate.exists() {
         // Subpath exists but no SKILL.md directly in it — search inside
         find_skill_md(&candidate, 3)
-          .ok_or_else(|| anyhow!("指定路径 {} 中没有找到 SKILL.md 文件。", sub))?
+          .ok_or_else(|| app_error(ERR_NO_SKILL_MD_IN_PATH, &format!("No SKILL.md found in path: {}", sub)))?
       } else {
         crate::debug_log!(Some(app), "子路径不存在: {}, 回退到全局搜索", candidate.display());
         find_skill_md(&tmp_dir, 3)
-          .ok_or_else(|| anyhow!("仓库中没有找到 SKILL.md 文件。"))?
+          .ok_or_else(|| app_error(ERR_NO_SKILL_MD_IN_REPO, "No SKILL.md found in the repository"))?
       }
     } else {
       find_skill_md(&tmp_dir, 3)
-        .ok_or_else(|| anyhow!("仓库中没有找到 SKILL.md 文件。"))?
+        .ok_or_else(|| app_error(ERR_NO_SKILL_MD_IN_REPO, "No SKILL.md found in the repository"))?
     };
     crate::debug_log!(Some(app), "找到 SKILL.md: {}", skill_dir.display());
 
@@ -454,7 +486,7 @@ fn clone_repo(url: &str, tmp_dir: &Path) -> Result<()> {
       &tmp_dir.display().to_string(),
     ])
     .output()
-    .context("无法运行 git，请确认已安装 git")?;
+    .map_err(|_| app_error(ERR_GIT_NOT_FOUND, "Cannot run git, please ensure git is installed"))?;
 
   if !output.status.success() {
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -463,12 +495,13 @@ fn clone_repo(url: &str, tmp_dir: &Path) -> Result<()> {
   Ok(())
 }
 
+/// 扫描 GitHub 仓库，找出所有包含 SKILL.md 的目录
 pub fn scan_github_repo_inner<R: Runtime>(
   app: &AppHandle<R>,
   url: &str,
 ) -> Result<GitHubScanResult> {
   let (normalized, url_subpath) =
-    crate::parse::parse_github_url(url).ok_or_else(|| anyhow!("请输入有效的 GitHub URL"))?;
+    crate::parse::parse_github_url(url).ok_or_else(|| app_error(ERR_INVALID_GITHUB_URL, "Please enter a valid GitHub URL"))?;
 
   let ts = registry::unix_timestamp();
   let tmp_dir = std::env::temp_dir().join(format!("skillkit-scan-{ts}"));
@@ -516,6 +549,7 @@ pub fn scan_github_repo_inner<R: Runtime>(
   result
 }
 
+/// 批量安装：从 GitHub 仓库的多个子路径安装 skill
 pub fn install_multiple_from_github_inner<R: Runtime>(
   app: &AppHandle<R>,
   app_paths: &AppPaths,
@@ -523,7 +557,7 @@ pub fn install_multiple_from_github_inner<R: Runtime>(
   subpaths: &[String],
 ) -> Result<Vec<InstallFromGitHubResult>> {
   let (normalized, _subpath) =
-    crate::parse::parse_github_url(url).ok_or_else(|| anyhow!("请输入有效的 GitHub URL"))?;
+    crate::parse::parse_github_url(url).ok_or_else(|| app_error(ERR_INVALID_GITHUB_URL, "Please enter a valid GitHub URL"))?;
 
   let ts = registry::unix_timestamp();
   let tmp_dir = std::env::temp_dir().join(format!("skillkit-gh-{ts}"));
@@ -597,25 +631,17 @@ pub fn install_multiple_from_github_inner<R: Runtime>(
   result
 }
 
+/// 根据 git 的 stderr 输出，匹配关键词映射到对应的错误码
 fn map_git_error(stderr: &str) -> anyhow::Error {
   let lower = stderr.to_lowercase();
   if lower.contains("could not resolve host") || lower.contains("network is unreachable") {
-    anyhow!(
-      "网络连接失败，请检查网络后重试。\n\n原始信息: {}",
-      stderr.trim()
-    )
+    app_error(ERR_GIT_NETWORK_ERROR, &format!("Network error: {}", stderr.trim()))
   } else if lower.contains("repository not found") || lower.contains("does not exist") {
-    anyhow!(
-      "仓库不存在，请确认 URL 正确且仓库是公开的。\n\n原始信息: {}",
-      stderr.trim()
-    )
+    app_error(ERR_GIT_REPO_NOT_FOUND, &format!("Repository not found: {}", stderr.trim()))
   } else if lower.contains("permission denied") || lower.contains("authentication") {
-    anyhow!(
-      "权限不足。私有仓库需要配置 SSH 密钥或 git 凭据。\n\n原始信息: {}",
-      stderr.trim()
-    )
+    app_error(ERR_GIT_PERMISSION_DENIED, &format!("Permission denied: {}", stderr.trim()))
   } else {
-    anyhow!("git 克隆失败: {}", stderr.trim())
+    app_error(ERR_GIT_CLONE_FAILED, &format!("Git clone failed: {}", stderr.trim()))
   }
 }
 

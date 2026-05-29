@@ -1,8 +1,12 @@
+// ── Skill 工具函数 ────────────────────────────────────────────────
+// 分类推断、标签映射、平台名称等辅助逻辑
+
 import type { PlatformKind, PlatformSkillItem } from '../types'
 import type { LanguagePreference } from '../constants/i18n'
 import { CATEGORY_LABELS } from '../constants/i18n'
 import { PLATFORM_TABS, SKILL_CATEGORY_MAP } from '../constants/platforms'
 
+/** 标准化分类名：转小写，空值返回 'uncategorized' */
 export function normalizeCategory(value: string | undefined) {
   if (!value) {
     return 'uncategorized'
@@ -10,11 +14,13 @@ export function normalizeCategory(value: string | undefined) {
   return value.trim().toLowerCase() || 'uncategorized'
 }
 
+/** 获取分类的本地化显示名 */
 export function categoryLabel(value: string | undefined, language: LanguagePreference = 'zh') {
   const normalized = normalizeCategory(value)
   return CATEGORY_LABELS[language][normalized] ?? value ?? CATEGORY_LABELS[language].uncategorized
 }
 
+/** 补全 skill 的默认值（tags、syncTargets、sourceLabel 等） */
 export function normalizeSkill(skill: PlatformSkillItem, defaultSourceLabel: string): PlatformSkillItem {
   return {
     ...skill,
@@ -26,11 +32,25 @@ export function normalizeSkill(skill: PlatformSkillItem, defaultSourceLabel: str
   }
 }
 
+/** 获取平台的显示名称（如 'codex' → 'Codex'） */
 export function platformLabel(platform: PlatformKind) {
   const current = PLATFORM_TABS.find((tab) => tab.key === platform)
   return current?.label ?? platform
 }
 
+const SOURCE_LABELS: Record<string, Record<string, string>> = {
+  codex: { zh: 'Codex', en: 'Codex' },
+  'claude-code': { zh: 'Claude Code', en: 'Claude Code' },
+  skillkit: { zh: 'SkillKit', en: 'SkillKit' },
+  local: { zh: '本地', en: 'Local' },
+}
+
+/** 获取来源的本地化显示名（codex → 'Codex'，claude-code → 'Claude Code'） */
+export function sourceLabel(source: string, language: string = 'zh') {
+  return SOURCE_LABELS[source]?.[language] ?? source
+}
+
+/** 给 Promise 加超时控制 */
 export function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
   return new Promise<T>((resolve, reject) => {
     const timer = window.setTimeout(() => {
@@ -50,6 +70,7 @@ export function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: 
   })
 }
 
+/** 推断 skill 的分类：优先用 SKILL.md 声明 → 硬编码 MAP → 关键词匹配 */
 export function inferCategoryKey(skill: PlatformSkillItem) {
   const explicit = normalizeCategory(skill.category)
   if (explicit !== 'uncategorized' && explicit !== '未分类') {

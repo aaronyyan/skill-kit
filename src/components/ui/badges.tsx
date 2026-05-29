@@ -1,3 +1,7 @@
+// ── 徽章组件 ──────────────────────────────────────────────────────
+// PlatformGlyph: 平台图标  |  PlatformMiniBadge: 平台小标签
+// CategoryIcon: 分类图标  |  SyncBadge: 同步状态标签
+
 import { Boxes } from 'lucide-react'
 import type { PlatformKind } from '../../types'
 import type { Translate } from '../../constants/i18n'

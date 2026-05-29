@@ -20,7 +20,7 @@ export const COPY = {
     actionHeader: '操作',
     noResults: '没有匹配结果',
     noResultsDesc: '切换平台、分类，或者调整搜索条件。',
-    emptyInspector: '选择一个技能后，这里会显示当前平台下的详细信息。',
+    emptyInspector: '选择一个 skill 后，这里会显示当前平台下的详细信息。',
     deleted: '已卸载',
     undoDelete: '撤销',
     source: '来源',
@@ -29,7 +29,7 @@ export const COPY = {
     details: '详情',
     sourcePlatform: '平台',
     sourceLabel: '位置',
-    sourcePath: '技能目录',
+    sourcePath: 'skill 目录',
     currentPlatformPath: '已安装到',
     sync: '同步',
     noSyncTargets: '当前平台没有可用的同步目标',
@@ -198,6 +198,23 @@ export const CATEGORY_LABELS: Record<LanguagePreference, Record<string, string>>
     memory: 'Memory',
     system: 'System',
   },
+}
+
+export const ERROR_COPY: Record<string, Record<LanguagePreference, string>> = {
+  sync_direction_unsupported: { zh: '当前版本暂不支持这个同步方向', en: 'Sync direction not supported in this version' },
+  invalid_source_path: { zh: '无效的源路径', en: 'Invalid source path' },
+  skill_md_missing: { zh: '源 skill 缺少 SKILL.md', en: 'Source skill is missing SKILL.md' },
+  skill_name_unresolvable: { zh: '无法解析 skill 名称', en: 'Cannot resolve skill name' },
+  target_exists: { zh: '目标平台已存在同名 skill', en: 'Target platform already has a skill with this name' },
+  invalid_github_url: { zh: '请输入有效的 GitHub URL', en: 'Please enter a valid GitHub URL' },
+  git_not_found: { zh: '无法运行 git，请确认已安装 git', en: 'Cannot run git, please ensure git is installed' },
+  no_skill_md_in_path: { zh: '指定路径中没有找到 SKILL.md 文件', en: 'No SKILL.md found in the specified path' },
+  no_skill_md_in_repo: { zh: '仓库中没有找到 SKILL.md 文件', en: 'No SKILL.md found in the repository' },
+  git_network_error: { zh: '网络连接失败，请检查网络后重试', en: 'Network error, please check your connection and try again' },
+  git_repo_not_found: { zh: '仓库不存在，请确认 URL 正确且仓库是公开的', en: 'Repository not found, verify the URL is correct and the repo is public' },
+  git_permission_denied: { zh: '权限不足，私有仓库需要配置 SSH 密钥或 git 凭据', en: 'Permission denied, private repos require SSH keys or git credentials' },
+  git_clone_failed: { zh: 'git 克隆失败', en: 'Git clone failed' },
+  target_unmanaged_conflict: { zh: '目标位置已存在未管理的目录', en: 'Target already contains an unmanaged directory' },
 }
 
 export function readStoredTheme(): ThemePreference {

@@ -10,9 +10,16 @@ use walkdir::WalkDir;
 
 use crate::types::PlatformKind;
 
+/// 扫描深度限制
 pub const SETTINGS_SCAN_DEPTH: usize = 4;
+/// 忽略的文件/目录名
 pub const IGNORE_RULES: [&str; 2] = [".DS_Store", ".git"];
 
+/// 应用全局路径配置
+/// - registry_root: SkillKit 的 skill 注册表根目录
+/// - skills_root: 注册表中的 skill 目录
+/// - target_roots: 各平台的 skill 安装目录（~/.codex/skills 等）
+/// - platform_scan_roots: 各平台的扫描目录
 pub struct AppPaths {
   pub home_dir: PathBuf,
   pub registry_root: PathBuf,
@@ -23,6 +30,7 @@ pub struct AppPaths {
 }
 
 impl AppPaths {
+  /// 从 Tauri 应用句柄初始化所有路径
   pub fn new<R: Runtime>(app: &AppHandle<R>) -> Result<Self> {
     let app_root = app
       .path()
@@ -113,6 +121,7 @@ impl AppPaths {
   }
 }
 
+/// 获取指定平台的 skill 安装根目录（如 ~/.codex/skills）
 pub fn target_root<'a>(paths: &'a AppPaths, target: &PlatformKind) -> &'a PathBuf {
   paths
     .target_roots
@@ -120,6 +129,7 @@ pub fn target_root<'a>(paths: &'a AppPaths, target: &PlatformKind) -> &'a PathBu
     .expect("target root should always exist")
 }
 
+/// 获取指定平台的所有扫描目录
 pub fn platform_roots(paths: &AppPaths, target: &PlatformKind) -> Vec<PathBuf> {
   paths
     .platform_scan_roots
@@ -145,6 +155,7 @@ pub fn summarize_root_label(paths: &AppPaths, platform: &PlatformKind, root: &Pa
   compact
 }
 
+/// 解析 skill 目录：如果是 symlink 则跟随到实际目录
 pub fn resolve_skill_dir(path: &Path) -> Option<PathBuf> {
   if let Ok(meta) = fs::symlink_metadata(path) {
     if meta.file_type().is_symlink() {
@@ -159,6 +170,7 @@ pub fn resolve_skill_dir(path: &Path) -> Option<PathBuf> {
   None
 }
 
+/// 检测目录是否可写
 pub fn is_writable(path: &Path) -> bool {
   let probe = path.join(".skillhub-write-test");
   let result = fs::write(&probe, b"probe").is_ok();
@@ -166,10 +178,12 @@ pub fn is_writable(path: &Path) -> bool {
   result
 }
 
+/// 检查路径是否存在（包括断开的 symlink）
 pub fn symlink_metadata_exists(path: &Path) -> bool {
   fs::symlink_metadata(path).is_ok()
 }
 
+/// 递归复制目录（跳过忽略规则中的文件）
 pub fn copy_dir(source: &Path, destination: &Path) -> Result<()> {
   fs::create_dir_all(destination)?;
   for entry in WalkDir::new(source) {
@@ -191,12 +205,14 @@ pub fn copy_dir(source: &Path, destination: &Path) -> Result<()> {
   Ok(())
 }
 
+/// 创建符号链接（Unix 版本）
 #[cfg(unix)]
 pub fn create_symlink(source: &Path, target: &Path) -> Result<()> {
   std::os::unix::fs::symlink(source, target)?;
   Ok(())
 }
 
+/// 创建符号链接（Windows 版本，区分文件和目录）
 #[cfg(windows)]
 pub fn create_symlink(source: &Path, target: &Path) -> Result<()> {
   if source.is_dir() {
@@ -207,6 +223,7 @@ pub fn create_symlink(source: &Path, target: &Path) -> Result<()> {
   Ok(())
 }
 
+/// 将路径转为绝对路径（用于去重比较）
 pub fn normalize_path(path: &str) -> String {
   fs::canonicalize(path)
     .map(|value| value.display().to_string())
@@ -242,6 +259,7 @@ pub fn normalize_lexical_path(path: &str) -> String {
   }
 }
 
+/// 展开 ~ 为实际 home 目录
 pub fn expand_tilde(value: &str, home: &Path) -> Result<PathBuf> {
   if let Some(stripped) = value.strip_prefix("~/") {
     Ok(home.join(stripped))
@@ -250,6 +268,7 @@ pub fn expand_tilde(value: &str, home: &Path) -> Result<PathBuf> {
   }
 }
 
+/// 平台对应的目录前缀名（.codex / .claude 等）
 pub fn platform_label(platform: &PlatformKind) -> &'static str {
   match platform {
     PlatformKind::Codex => ".codex",
@@ -259,6 +278,7 @@ pub fn platform_label(platform: &PlatformKind) -> &'static str {
   }
 }
 
+/// 从路径推断所属平台
 pub fn platform_from_path(path: &Path) -> Option<PlatformKind> {
   let path_str = path.to_string_lossy();
   if path_str.contains(".claude") && path_str.contains("skills") {
@@ -274,6 +294,7 @@ pub fn platform_from_path(path: &Path) -> Option<PlatformKind> {
   }
 }
 
+/// anyhow::Error 转为字符串（用于 Tauri command 返回值）
 pub fn error_to_string(error: anyhow::Error) -> String {
   format!("{error:#}")
 }

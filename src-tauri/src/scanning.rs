@@ -12,6 +12,7 @@ use crate::types::{
   SkillSourceType, SyncState, SyncTargetInfo, TargetSkillEntry, TargetSummary,
 };
 
+/// 扫描所有平台的 skill 目录，返回每个平台的条目汇总
 pub fn scan_all_targets(
   app_paths: &AppPaths,
   registry_skills: &[SkillRecord],
@@ -79,6 +80,7 @@ pub fn scan_all_targets(
   .collect()
 }
 
+/// 扫描单个 skill 目录，提取所有 skill 信息
 fn scan_skills_directory(
   root: &std::path::Path,
   platform: &PlatformKind,
@@ -108,10 +110,12 @@ fn scan_skills_directory(
       continue;
     }
 
-    let (skill_dir, source_type) = if is_symlink {
+    // 解析 skill 目录：symlink 需要跟踪链接目标用于来源判断
+    let (skill_dir, source_type, symlink_target) = if is_symlink {
       if let Ok(resolved) = fs::canonicalize(&entry_path) {
         if resolved.is_dir() && resolved.join("SKILL.md").exists() {
-          (resolved, SkillSourceType::Symlink)
+          let link_target = fs::read_link(&entry_path).ok();
+          (resolved, SkillSourceType::Symlink, link_target)
         } else {
           continue;
         }
@@ -119,7 +123,7 @@ fn scan_skills_directory(
         continue;
       }
     } else if entry_path.join("SKILL.md").exists() {
-      (entry_path.clone(), SkillSourceType::Directory)
+      (entry_path.clone(), SkillSourceType::Directory, None)
     } else {
       continue;
     };
@@ -157,11 +161,37 @@ fn scan_skills_directory(
       registry_skills,
     );
 
+    // 判断 skill 来源：
+    //   - 有 registry 管理记录 → SkillKit 安装的
+    //   - 在 ~/.claude/skills/ 且是 symlink 指向 ~/.codex/skills/ → Codex 安装的
+    //   - 在 ~/.claude/skills/ 且是普通目录 → Claude Code 安装的
+    //   - 在 ~/.codex/skills/ → Codex 安装的
+    let source = if managed_registry_id.is_some() {
+      "skillkit".to_string()
+    } else if *platform == PlatformKind::Claude {
+      if let Some(ref target) = symlink_target {
+        let target_str = target.to_string_lossy();
+        // symlink 指向 Codex 目录 → 来源是 Codex
+        if target_str.contains(".codex/skills/") || target_str.contains(".codex\\skills\\") {
+          "codex".to_string()
+        } else {
+          "claude-code".to_string()
+        }
+      } else {
+        // 普通目录 → Claude Code 自带安装
+        "claude-code".to_string()
+      }
+    } else if *platform == PlatformKind::Codex {
+      "codex".to_string()
+    } else {
+      "local".to_string()
+    };
+
     skills.push(PlatformSkillItem {
       id: skill_id,
       name,
-      category: registry_match
-        .map(|skill| skill.category.clone())
+      category: crate::parse::extract_category(&skill_dir)
+        .or_else(|| registry_match.map(|skill| skill.category.clone()))
         .unwrap_or_else(|| "uncategorized".to_string()),
       tags: registry_match
         .map(|skill| skill.tags.clone())
@@ -172,6 +202,7 @@ fn scan_skills_directory(
       install_path: entry_path.display().to_string(),
       root_label: root.display().to_string(),
       source_label: paths::summarize_root_label(app_paths, platform, root),
+      source,
       platform: platform.clone(),
       source_type,
       managed_registry_id,
@@ -181,6 +212,7 @@ fn scan_skills_directory(
   Ok(())
 }
 
+/// 扫描所有平台，返回按平台分组的 skill 列表
 pub fn scan_platform_groups(
   app_paths: &AppPaths,
   registry_skills: &[SkillRecord],
@@ -237,6 +269,7 @@ pub fn scan_platform_groups(
   .collect()
 }
 
+/// 构建同步目标列表：检查各平台是否有该 skill 及其同步状态
 fn build_sync_targets(
   source_platform: &PlatformKind,
   name: &str,
@@ -288,6 +321,7 @@ fn build_sync_targets(
   .collect()
 }
 
+/// 检测单个 skill 在指定平台上的一致性状态
 pub fn detect_single_target_status(
   app_paths: &AppPaths,
   skill: &crate::types::PersistedSkill,
@@ -323,6 +357,7 @@ pub fn detect_single_target_status(
   Ok(DriftStatus::UnmanagedConflict)
 }
 
+/// 一致性检测：返回所有有问题的记录
 pub fn detect_drift_inner(
   app_paths: &AppPaths,
   registry_skills: &[SkillRecord],

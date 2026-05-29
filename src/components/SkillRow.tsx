@@ -1,3 +1,6 @@
+// ── Skill 列表行 ─────────────────────────────────────────────────
+// 主界面左侧 skill 列表中的单行，展示名称、描述、同步状态和操作按钮
+
 import { motion } from 'framer-motion'
 import { ExternalLink, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
 import type { PlatformSkillItem } from '../types'

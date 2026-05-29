@@ -12,6 +12,8 @@ use tauri::{AppHandle, Emitter};
 use crate::paths::platform_from_path;
 use crate::types::SkillChangeNotice;
 
+/// 启动文件系统监听，监控四个平台的 skill 目录变化
+/// 变更事件通过 Tauri 的 event 系统发送给前端
 pub fn watch_skill_directories(app_handle: &AppHandle) -> Result<RecommendedWatcher> {
   let Some(home) = dirs_next::home_dir() else {
     anyhow::bail!("home directory not found");

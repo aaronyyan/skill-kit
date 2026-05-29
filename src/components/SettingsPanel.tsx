@@ -1,3 +1,6 @@
+// ── 设置面板 ──────────────────────────────────────────────────────
+// 主题切换、语言切换、调试模式开关
+
 import { MonitorCog, Moon, Sun } from 'lucide-react'
 import type { LanguagePreference, ThemePreference, Translate } from '../constants/i18n'
 
