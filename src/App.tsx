@@ -477,7 +477,7 @@ function App() {
       </div>
 
       <AppDialog open={modalKind === 'settings'} onOpenChange={(open) => !open && setModalKind(null)} title={t('settingsTitle')}>
-        <SettingsPanel language={language} themePreference={themePreference} debugMode={debugMode} onLanguageChange={setLanguage} onThemeChange={setThemePreference} onDebugModeChange={handleToggleDebugMode} t={t} />
+        <SettingsPanel language={language} themePreference={themePreference} debugMode={debugMode} version={currentVersion} onLanguageChange={setLanguage} onThemeChange={setThemePreference} onDebugModeChange={handleToggleDebugMode} t={t} />
       </AppDialog>
 
       {pendingSyncSkill ? (

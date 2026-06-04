@@ -17,6 +17,7 @@ export function SettingsPanel({
   themePreference,
   language,
   debugMode,
+  version,
   onThemeChange,
   onLanguageChange,
   onDebugModeChange,
@@ -25,6 +26,7 @@ export function SettingsPanel({
   themePreference: ThemePreference
   language: LanguagePreference
   debugMode: boolean
+  version: string
   onThemeChange: (value: ThemePreference) => void
   onLanguageChange: (value: LanguagePreference) => void
   onDebugModeChange: (value: boolean) => void
@@ -120,6 +122,12 @@ export function SettingsPanel({
           {t('debugModeDesc') ? <span className="text-[12px] text-[var(--text-muted)]">{t('debugModeDesc')}</span> : null}
         </div>
       </PreferenceRow>
+
+      {version ? (
+        <div className="pt-2 text-center text-[12px] text-[var(--text-muted)]">
+          {t('version')} {version}
+        </div>
+      ) : null}
     </div>
   )
 }

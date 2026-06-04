@@ -92,6 +92,7 @@ export const COPY = {
     updateSkip: '稍后再说',
     updateError: '更新失败',
     updateLatest: '已是最新版本',
+    version: '版本',
   },
   en: {
     localSkills: 'Local skills',
@@ -177,6 +178,7 @@ export const COPY = {
     updateSkip: 'Skip for now',
     updateError: 'Update failed',
     updateLatest: 'You are up to date',
+    version: 'Version',
   },
 } as const
 
