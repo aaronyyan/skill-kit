@@ -4,7 +4,7 @@
 import { PackagePlus, PanelLeft, Settings2, Terminal } from 'lucide-react'
 import type { PlatformKind } from '../types'
 import type { Translate } from '../constants/i18n'
-import { PLATFORM_TABS } from '../constants/platforms'
+import { getPlatformTab } from '../constants/platforms'
 import { PlatformGlyph, CategoryIcon } from './ui/badges'
 
 type CategoryItem = {
@@ -16,6 +16,7 @@ type CategoryItem = {
 type SidebarProps = {
   collapsed: boolean
   onToggleCollapse: () => void
+  platformKeys: PlatformKind[]
   activePlatform: PlatformKind
   onPlatformChange: (platform: PlatformKind) => void
   effectiveCategory: string
@@ -35,6 +36,7 @@ type SidebarProps = {
 export function Sidebar({
   collapsed,
   onToggleCollapse,
+  platformKeys,
   activePlatform,
   onPlatformChange,
   effectiveCategory,
@@ -77,8 +79,9 @@ export function Sidebar({
       <div className="px-2 py-2">
         {!collapsed ? <div className="px-2 pb-2 text-[13px] font-medium text-[var(--text-secondary)]">{t('platform')}</div> : null}
         <div className="space-y-1">
-          {PLATFORM_TABS.map((tab) => {
-            const active = tab.key === activePlatform
+          {platformKeys.map((key) => {
+            const tab = getPlatformTab(key)
+            const active = key === activePlatform
             return (
               <button
                 key={tab.key}

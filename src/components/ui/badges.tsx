@@ -6,7 +6,7 @@ import { Boxes } from 'lucide-react'
 import type { PlatformKind } from '../../types'
 import type { Translate } from '../../constants/i18n'
 import type { SyncState } from '../../types'
-import { PLATFORM_TABS, CATEGORY_ICONS } from '../../constants/platforms'
+import { getPlatformTab, CATEGORY_ICONS } from '../../constants/platforms'
 import type { PlatformTab } from '../../constants/platforms'
 
 export function PlatformGlyph({ tab }: { tab: PlatformTab }) {
@@ -22,7 +22,7 @@ export function PlatformGlyph({ tab }: { tab: PlatformTab }) {
 }
 
 export function PlatformMiniBadge({ platform }: { platform: PlatformKind }) {
-  const tab = PLATFORM_TABS.find((item) => item.key === platform) ?? PLATFORM_TABS[0]
+  const tab = getPlatformTab(platform)
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px]"

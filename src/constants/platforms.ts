@@ -1,5 +1,6 @@
 // ── 平台与分类常量 ────────────────────────────────────────────────
-// PLATFORM_TABS: 平台 Tab 配置（图标、颜色）
+// PLATFORM_VISUAL_CONFIG: 平台视觉配置（图标、颜色），按 key 索引
+// getPlatformTab: 根据 platform key 获取视觉配置，未知平台返回默认样式
 // CATEGORY_ICONS: 分类图标映射
 // TAG_COLOR_MAP: 分类标签颜色
 // SKILL_CATEGORY_MAP: skill 名称 → 分类的硬编码映射（兜底用）
@@ -9,6 +10,7 @@ import type { PlatformKind } from '../types'
 import openaiIcon from '../assets/brands/openai.png'
 import claudeIcon from '../assets/brands/claude.ico'
 import hermesIcon from '../assets/brands/hermes-x.jpg'
+import copilotIcon from '../assets/brands/copilot.png'
 
 export type PlatformTab = {
   key: PlatformKind
@@ -20,9 +22,19 @@ export type PlatformTab = {
   softAccent: string
 }
 
-export const PLATFORM_TABS: PlatformTab[] = [
-  {
-    key: 'codex',
+/** 默认视觉样式（未知平台时使用） */
+const DEFAULT_TAB: Omit<PlatformTab, 'key'> = {
+  label: '',
+  icon: '⚙️',
+  iconAlt: 'Platform',
+  iconType: 'emoji',
+  accent: '#64748b',
+  softAccent: 'rgba(100, 116, 139, 0.14)',
+}
+
+/** 平台视觉配置 map，新增平台只需在此添加一条 */
+const PLATFORM_VISUAL_CONFIG: Record<string, Omit<PlatformTab, 'key'>> = {
+  codex: {
     label: 'Codex',
     icon: openaiIcon,
     iconAlt: 'OpenAI',
@@ -30,8 +42,7 @@ export const PLATFORM_TABS: PlatformTab[] = [
     accent: '#38b86b',
     softAccent: 'rgba(56, 184, 107, 0.14)',
   },
-  {
-    key: 'claude',
+  claude: {
     label: 'Claude Code',
     icon: claudeIcon,
     iconAlt: 'Claude Code',
@@ -39,8 +50,7 @@ export const PLATFORM_TABS: PlatformTab[] = [
     accent: '#d08a41',
     softAccent: 'rgba(208, 138, 65, 0.14)',
   },
-  {
-    key: 'openclaw',
+  openclaw: {
     label: 'OpenClaw',
     icon: '🦞',
     iconAlt: 'OpenClaw',
@@ -48,8 +58,7 @@ export const PLATFORM_TABS: PlatformTab[] = [
     accent: '#49a2a0',
     softAccent: 'rgba(73, 162, 160, 0.14)',
   },
-  {
-    key: 'hermes',
+  hermes: {
     label: 'Hermes',
     icon: hermesIcon,
     iconAlt: 'Hermes',
@@ -57,7 +66,32 @@ export const PLATFORM_TABS: PlatformTab[] = [
     accent: '#8b7cff',
     softAccent: 'rgba(139, 124, 255, 0.14)',
   },
-]
+  copilot: {
+    label: 'Copilot',
+    icon: copilotIcon,
+    iconAlt: 'GitHub Copilot',
+    iconType: 'image',
+    accent: '#1f6feb',
+    softAccent: 'rgba(31, 111, 235, 0.14)',
+  },
+}
+
+/**
+ * 根据 platform key 获取视觉配置
+ * 有配置 → 返回完整 PlatformTab
+ * 无配置 → 返回默认样式，label 用 key 本身
+ */
+export function getPlatformTab(key: PlatformKind): PlatformTab {
+  const config = PLATFORM_VISUAL_CONFIG[key]
+  return config
+    ? { key, ...config }
+    : { key, ...DEFAULT_TAB, label: key }
+}
+
+/** 兼容旧接口：所有已配置平台的列表 */
+export const PLATFORM_TABS: PlatformTab[] = Object.keys(PLATFORM_VISUAL_CONFIG).map(
+  (key) => getPlatformTab(key as PlatformKind),
+)
 
 export const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   all: Boxes,

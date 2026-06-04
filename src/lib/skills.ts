@@ -4,7 +4,7 @@
 import type { PlatformKind, PlatformSkillItem } from '../types'
 import type { LanguagePreference } from '../constants/i18n'
 import { CATEGORY_LABELS } from '../constants/i18n'
-import { PLATFORM_TABS, SKILL_CATEGORY_MAP } from '../constants/platforms'
+import { getPlatformTab, SKILL_CATEGORY_MAP } from '../constants/platforms'
 
 /** 标准化分类名：转小写，空值返回 'uncategorized' */
 export function normalizeCategory(value: string | undefined) {
@@ -34,8 +34,8 @@ export function normalizeSkill(skill: PlatformSkillItem, defaultSourceLabel: str
 
 /** 获取平台的显示名称（如 'codex' → 'Codex'） */
 export function platformLabel(platform: PlatformKind) {
-  const current = PLATFORM_TABS.find((tab) => tab.key === platform)
-  return current?.label ?? platform
+  const tab = getPlatformTab(platform)
+  return tab.label || platform
 }
 
 const SOURCE_LABELS: Record<string, Record<string, string>> = {

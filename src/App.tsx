@@ -25,7 +25,7 @@ import type {
 import { AppDialog } from './components/ui'
 import { COPY } from './constants/i18n'
 import type { Translate } from './constants/i18n'
-import { PLATFORM_TABS } from './constants/platforms'
+import { PLATFORM_TABS, getPlatformTab } from './constants/platforms'
 import { normalizeSkill, inferCategoryKey, categoryLabel, withTimeout, platformLabel } from './lib/skills'
 import { PlatformMiniBadge, SyncBadge } from './components/ui/badges'
 import { DialogActions, SecondaryButton, DangerActionButton, EmptyState } from './components/ui/buttons'
@@ -198,7 +198,7 @@ function App() {
   }, [])
 
   const activeGroup = useMemo(() => platformGroups.find((group) => group.platform === activePlatform) ?? null, [activePlatform, platformGroups])
-  const activeTab = useMemo(() => PLATFORM_TABS.find((tab) => tab.key === activePlatform) ?? PLATFORM_TABS[0], [activePlatform])
+  const activeTab = useMemo(() => getPlatformTab(activePlatform), [activePlatform])
   const normalizedSkills = useMemo(() => (activeGroup?.skills ?? []).map((skill) => normalizeSkill(skill, t('defaultSourceLabel'))), [activeGroup, t])
 
   const categoryItems = useMemo<CategoryItem[]>(() => {
@@ -292,8 +292,8 @@ function App() {
       return s.githubUrl.replace(/\.git$/, '').replace(/\/+$/, '') === normalizedUrl
     })
     const platformCount = new Set(matchingSkills.map((s) => s.platform)).size
-    debug.debugLog(`[duplicate check] url=${normalizedUrl}, found on ${platformCount}/${PLATFORM_TABS.length} platforms`)
-    if (platformCount >= PLATFORM_TABS.length) { setDuplicateWarning(matchingSkills[0].name); return }
+    debug.debugLog(`[duplicate check] url=${normalizedUrl}, found on ${platformCount}/${platformGroups.length} platforms`)
+    if (platformCount >= platformGroups.length) { setDuplicateWarning(matchingSkills[0].name); return }
     setWorkingAction('install-github')
     isInstallingRef.current = true
     await new Promise<void>((resolve) => { setInstallPhase('cloning'); requestAnimationFrame(() => requestAnimationFrame(() => resolve())) })
@@ -370,6 +370,7 @@ function App() {
           <Sidebar
             collapsed={sidebarCollapsed}
             onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+            platformKeys={platformGroups.map((g) => g.platform)}
             activePlatform={activePlatform}
             onPlatformChange={(key) => {
               setActivePlatform(key); setSelectedCategory('all'); setViewScope('platform')
