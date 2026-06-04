@@ -42,7 +42,7 @@ export function UpdateDialog({ open, onClose, update, currentVersion, t }: Updat
       await update.downloadAndInstall((event) => {
         switch (event.event) {
           case 'Started':
-            contentLength = event.data.contentLength
+            contentLength = event.data.contentLength ?? 0
             setProgress({ downloaded: 0, total: contentLength })
             break
           case 'Progress':
