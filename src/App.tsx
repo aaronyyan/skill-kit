@@ -25,7 +25,7 @@ import type {
 import { AppDialog } from './components/ui'
 import { COPY } from './constants/i18n'
 import type { Translate } from './constants/i18n'
-import { PLATFORM_TABS, getPlatformTab } from './constants/platforms'
+import { getPlatformTab } from './constants/platforms'
 import { normalizeSkill, inferCategoryKey, categoryLabel, withTimeout, platformLabel } from './lib/skills'
 import { PlatformMiniBadge, SyncBadge } from './components/ui/badges'
 import { DialogActions, SecondaryButton, DangerActionButton, EmptyState } from './components/ui/buttons'
