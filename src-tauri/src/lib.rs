@@ -62,6 +62,8 @@ pub fn run() {
         .build(),
     )
     .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_updater::Builder::new().build())
+    .plugin(tauri_plugin_process::init())
     .setup(|app| {
       // 启动文件系统监听，监控四个平台的 skill 目录变化
       let app_handle = app.handle().clone();

@@ -45,18 +45,21 @@ impl AppPaths {
     let claude_root = home.join(".claude").join("skills");
     let openclaw_root = home.join(".openclaw").join("skills");
     let hermes_root = home.join(".hermes").join("skills");
+    let copilot_root = home.join(".copilot").join("skills");
 
     let mut target_roots = HashMap::new();
     target_roots.insert(PlatformKind::Codex, codex_root.clone());
     target_roots.insert(PlatformKind::Claude, claude_root.clone());
     target_roots.insert(PlatformKind::Openclaw, openclaw_root.clone());
     target_roots.insert(PlatformKind::Hermes, hermes_root.clone());
+    target_roots.insert(PlatformKind::Copilot, copilot_root.clone());
 
     let mut platform_scan_roots = HashMap::new();
     platform_scan_roots.insert(PlatformKind::Codex, vec![codex_root]);
     platform_scan_roots.insert(PlatformKind::Claude, vec![claude_root]);
     platform_scan_roots.insert(PlatformKind::Openclaw, vec![openclaw_root]);
     platform_scan_roots.insert(PlatformKind::Hermes, vec![hermes_root]);
+    platform_scan_roots.insert(PlatformKind::Copilot, vec![copilot_root]);
 
     fs::create_dir_all(&skills_root)?;
     if let Some(parent) = operations_log.parent() {
@@ -86,6 +89,7 @@ impl AppPaths {
     let operations_log = registry_root.join("logs").join("operations.log");
     let openclaw_root = registry_root.join("openclaw-skills");
     let hermes_root = registry_root.join("hermes-skills");
+    let copilot_root = registry_root.join("copilot-skills");
     let home_dir = dirs_next::home_dir().unwrap_or_else(|| PathBuf::from("/tmp"));
 
     let mut target_roots = HashMap::new();
@@ -93,12 +97,14 @@ impl AppPaths {
     target_roots.insert(PlatformKind::Claude, claude_root.clone());
     target_roots.insert(PlatformKind::Openclaw, openclaw_root.clone());
     target_roots.insert(PlatformKind::Hermes, hermes_root.clone());
+    target_roots.insert(PlatformKind::Copilot, copilot_root.clone());
 
     let mut platform_scan_roots = HashMap::new();
     platform_scan_roots.insert(PlatformKind::Codex, vec![codex_root]);
     platform_scan_roots.insert(PlatformKind::Claude, vec![claude_root]);
     platform_scan_roots.insert(PlatformKind::Openclaw, vec![openclaw_root]);
     platform_scan_roots.insert(PlatformKind::Hermes, vec![hermes_root]);
+    platform_scan_roots.insert(PlatformKind::Copilot, vec![copilot_root]);
 
     fs::create_dir_all(&skills_root)?;
     if let Some(parent) = operations_log.parent() {
@@ -275,6 +281,7 @@ pub fn platform_label(platform: &PlatformKind) -> &'static str {
     PlatformKind::Claude => ".claude",
     PlatformKind::Openclaw => ".openclaw",
     PlatformKind::Hermes => ".hermes",
+    PlatformKind::Copilot => ".copilot",
   }
 }
 
@@ -289,6 +296,8 @@ pub fn platform_from_path(path: &Path) -> Option<PlatformKind> {
     Some(PlatformKind::Openclaw)
   } else if path_str.contains(".hermes") && path_str.contains("skills") {
     Some(PlatformKind::Hermes)
+  } else if path_str.contains(".copilot") && path_str.contains("skills") {
+    Some(PlatformKind::Copilot)
   } else {
     None
   }

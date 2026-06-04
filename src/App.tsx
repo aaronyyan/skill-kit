@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, LoaderCircle, Route, Search } from 'lucide-react'
+import { check } from '@tauri-apps/plugin-updater'
+import { getVersion } from '@tauri-apps/api/app'
+import type { Update } from '@tauri-apps/plugin-updater'
 import './index.css'
 import {
   deletePlatformSkill,
@@ -32,6 +35,7 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { BootBanner } from './components/BootBanner'
 import { Sidebar } from './components/Sidebar'
 import { InstallDialog } from './components/InstallDialog'
+import { UpdateDialog } from './components/UpdateDialog'
 import { DebugPanel } from './components/DebugPanel'
 import { usePreferences } from './hooks/usePreferences'
 import { useDebugLog } from './hooks/useDebugLog'
@@ -82,6 +86,8 @@ function App() {
   const isFirstLoadRef = useRef(true)
   const isInstallingRef = useRef(false)
   const [recentlyInstalledNames, setRecentlyInstalledNames] = useState<Set<string>>(new Set())
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null)
+  const [currentVersion, setCurrentVersion] = useState('')
 
   const { language, setLanguage, themePreference, setThemePreference, sidebarCollapsed, setSidebarCollapsed, bootPhase, setBootPhase } = prefs
   const { debugMode, debugLogsOpen, setDebugLogsOpen, debugLogEntries, debugLogEndRef, handleToggleDebugMode } = debug
@@ -136,6 +142,23 @@ function App() {
     mountedRef.current = true
     queueMicrotask(() => { void loadData() })
   }, [loadData])
+
+  // 应用就绪后静默检查更新，失败不影响正常启动
+  useEffect(() => {
+    if (bootPhase !== 'ready') return
+    let cancelled = false
+    void (async () => {
+      try {
+        const version = await getVersion()
+        if (!cancelled) setCurrentVersion(version)
+        const update = await check()
+        if (!cancelled && update) setPendingUpdate(update)
+      } catch {
+        // 静默忽略：无网络或端点不可达时不影响正常使用
+      }
+    })()
+    return () => { cancelled = true }
+  }, [bootPhase])
 
   useEffect(() => {
     function applyHighlight(skillIds: Set<string>) {
@@ -507,6 +530,16 @@ function App() {
         onConfirmMultiInstall={() => void handleConfirmMultiInstall()}
         t={t}
       />
+
+      {pendingUpdate ? (
+        <UpdateDialog
+          open
+          onClose={() => setPendingUpdate(null)}
+          update={pendingUpdate}
+          currentVersion={currentVersion}
+          t={t}
+        />
+      ) : null}
 
       {debugMode && debugLogsOpen ? (
         <DebugPanel entries={debugLogEntries} endRef={debugLogEndRef} onClose={() => setDebugLogsOpen(false)} t={t} />

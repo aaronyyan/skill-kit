@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "category": "DeveloperTool",
     "macOS": {
       "dmg": {
@@ -64,6 +65,14 @@
         "type": "downloadBootstrapper",
         "silent": true
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY1MDMzOUNEMTQyMEZDMDUKUldRRi9DQVV6VGtEOVRpTnd4S0F3VkExRmVuVmt3M0xXN0ZTOXJ3YWVRakhrTmhHQnFOWjlBbzYK",
+      "endpoints": [
+        "https://github.com/aaronyan/skill-kit/releases/latest/download/latest.json"
+      ]
     }
   }
 }

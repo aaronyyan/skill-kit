@@ -27,6 +27,7 @@ pub fn scan_all_targets(
     PlatformKind::Claude,
     PlatformKind::Openclaw,
     PlatformKind::Hermes,
+    PlatformKind::Copilot,
   ]
   .iter()
   .map(|target| {
@@ -232,6 +233,7 @@ pub fn scan_platform_groups(
     PlatformKind::Claude,
     PlatformKind::Openclaw,
     PlatformKind::Hermes,
+    PlatformKind::Copilot,
   ]
   .iter()
   .map(|platform| {
@@ -282,6 +284,7 @@ fn build_sync_targets(
     PlatformKind::Claude,
     PlatformKind::Openclaw,
     PlatformKind::Hermes,
+    PlatformKind::Copilot,
   ]
   .iter()
   .map(|platform| {

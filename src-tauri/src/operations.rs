@@ -258,6 +258,7 @@ pub fn detect_platform_origin(app_paths: &AppPaths, path: &Path) -> Option<Platf
     PlatformKind::Claude,
     PlatformKind::Openclaw,
     PlatformKind::Hermes,
+    PlatformKind::Copilot,
   ] {
     for root in paths::platform_roots(app_paths, &platform) {
       let root_normalized = paths::normalize_existing_path_or_raw(&root.display().to_string());
@@ -280,6 +281,7 @@ pub fn detect_platform_origin_lexical(
     PlatformKind::Claude,
     PlatformKind::Openclaw,
     PlatformKind::Hermes,
+    PlatformKind::Copilot,
   ] {
     for root in paths::platform_roots(app_paths, &platform) {
       let root_normalized = paths::normalize_lexical_path(&root.display().to_string());
@@ -301,6 +303,7 @@ pub fn scan_existing_platforms_for_name(
     PlatformKind::Claude,
     PlatformKind::Openclaw,
     PlatformKind::Hermes,
+    PlatformKind::Copilot,
   ] {
     let candidate = paths::target_root(app_paths, &platform).join(skill_name);
     if candidate.exists() || paths::symlink_metadata_exists(&candidate) {

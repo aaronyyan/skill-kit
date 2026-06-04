@@ -1,7 +1,7 @@
 // ── 基础类型 ──────────────────────────────────────────────────────
 
 /** 支持的 AI 编码平台 */
-export type PlatformKind = 'codex' | 'claude' | 'openclaw' | 'hermes'
+export type PlatformKind = 'codex' | 'claude' | 'openclaw' | 'hermes' | 'copilot'
 /** skill 安装模式：symlink（registry 管理）或 copy（GitHub 安装） */
 export type InstallMode = 'symlink' | 'copy'
 /** 一致性检测状态 */

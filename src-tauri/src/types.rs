@@ -8,6 +8,7 @@ pub enum PlatformKind {
   Claude,
   Openclaw,
   Hermes,
+  Copilot,
 }
 
 /// skill 在磁盘上的发现方式

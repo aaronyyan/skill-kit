@@ -40,6 +40,7 @@ pub fn to_skill_record(app_paths: &AppPaths, persisted: PersistedSkill) -> Resul
     crate::types::PlatformKind::Claude,
     crate::types::PlatformKind::Openclaw,
     crate::types::PlatformKind::Hermes,
+    crate::types::PlatformKind::Copilot,
   ]
   .iter()
   .map(|target| {

@@ -24,6 +24,7 @@ pub fn watch_skill_directories(app_handle: &AppHandle) -> Result<RecommendedWatc
     home.join(".codex/skills"),
     home.join(".openclaw/skills"),
     home.join(".hermes/skills"),
+    home.join(".copilot/skills"),
   ];
 
   let (tx, rx) = mpsc::channel::<Event>();
